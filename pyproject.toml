@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eirewatch-monitor"
+version = "0.1.1"
+description = "Local source-health and incident-lifecycle monitoring"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+eirewatch-monitor = "eirewatch.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["eirewatch*"]
