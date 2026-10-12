@@ -7,7 +7,7 @@ from eirewatch.collectors import collect,check_url
 from eirewatch.report import render
 
 NOW='2026-10-10T10:00:00+00:00'
-CONFIG={'id':'test','url':'https://example.org/feed','allowed_hosts':['example.org'],'adapter':'normalized-json-v1','max_age_hours':2,'approved_for_ingestion':True,'official':True}
+CONFIG={'synthetic':True,'id':'test','url':'https://example.org/feed','allowed_hosts':['example.org'],'adapter':'normalized-json-v1','max_age_hours':2,'approved_for_ingestion':True,'official':True}
 RECORD={'id':'one','title':'Test closure','category':'road','areas':['Cork'],'issued':'2026-10-10T08:00:00+00:00','updated':'2026-10-10T09:00:00+00:00','expires':'2026-10-10T18:00:00+00:00','status':'active','url':'https://example.org/one','instruction':'Test only'}
 
 class MonitorTests(unittest.TestCase):

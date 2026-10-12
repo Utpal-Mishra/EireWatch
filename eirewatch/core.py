@@ -3,6 +3,7 @@ import hashlib
 import json
 import sqlite3
 from datetime import datetime, timezone
+from .registry import validate_config
 
 
 def utc():
@@ -10,6 +11,8 @@ def utc():
 
 
 def instant(value):
+    if not isinstance(value, str):
+        raise ValueError('Timestamp must be text')
     parsed = datetime.fromisoformat(value.replace('Z', '+00:00'))
     if parsed.tzinfo is None:
         raise ValueError('Timezone required')
@@ -52,14 +55,18 @@ class Monitor:
           created TEXT NOT NULL, acknowledged TEXT, UNIQUE(subscription,incident,revision));
         ''')
 
+        # Additive migration preserves existing incidents and history.
+        columns = {r['name'] for r in self.db.execute('PRAGMA table_info(sources)')}
+        if 'published' not in columns:
+            self.db.execute('ALTER TABLE sources ADD COLUMN published TEXT')
+            self.db.commit()
+
     def audit(self, action, subject, actor, detail, now):
         self.db.execute('INSERT INTO audit(at,action,subject,actor,detail) VALUES(?,?,?,?,?)',
                         (now, action, subject, actor, canonical(detail)))
 
     def register(self, config):
-        required = {'id','url','adapter','max_age_hours','approved_for_ingestion','official'}
-        if not required <= config.keys() or config['max_age_hours'] <= 0:
-            raise ValueError('Invalid source configuration')
+        validate_config(config)
         with self.db:
             self.db.execute('INSERT INTO sources(id,config) VALUES(?,?) ON CONFLICT(id) DO UPDATE SET config=excluded.config',
                             (config['id'], canonical(config)))
@@ -91,7 +98,7 @@ class Monitor:
         if record['expires'] is not None and instant(record['expires']) <= issued:
             raise ValueError('Expiry must follow issue')
 
-    def ingest(self, source_id, records, now=None, raw_hash=None):
+    def ingest(self, source_id, records, now=None, raw_hash=None, published=None):
         now = now or utc()
         instant(now)
         source = self.db.execute('SELECT * FROM sources WHERE id=?',(source_id,)).fetchone()
@@ -100,6 +107,12 @@ class Monitor:
         config = json.loads(source['config'])
         if not config['approved_for_ingestion']:
             raise ValueError('Source ingestion is disabled pending approval')
+        validate_config(config)
+        if published is not None:
+            if instant(published) > instant(now):
+                raise ValueError('Publication timestamp is in the future')
+            if source['published'] and instant(published) < instant(source['published']):
+                raise ValueError('Publication timestamp regressed')
         # Validate the complete batch before committing any part of it.
         seen = set()
         for r in records:
@@ -128,8 +141,8 @@ class Monitor:
                 self.db.execute("UPDATE outbox SET state='superseded' WHERE incident=? AND state='pending'",(id,))
                 self.audit('revision_created',id,'collector',{'revision':revision},now)
                 changed += 1
-            self.db.execute('UPDATE sources SET checked=?,succeeded=?,failures=0,error=NULL,raw_hash=? WHERE id=?',
-                            (now,now,raw_hash,source_id))
+            self.db.execute('UPDATE sources SET checked=?,succeeded=?,failures=0,error=NULL,raw_hash=?,published=? WHERE id=?',
+                            (now,now,raw_hash,published,source_id))
         # An item disappearing from a feed is NOT evidence of resolution.
         return changed
 
@@ -160,7 +173,22 @@ class Monitor:
             elif not item['succeeded']: status='never_checked'
             elif (current-instant(item['succeeded'])).total_seconds() > config['max_age_hours']*3600: status='stale'
             else: status='healthy'
-            item.update(status=status,config=config)
+            connection_status = status
+            threshold = config.get('publication_max_age_hours')
+            publication_status = 'not_configured'
+            if threshold is not None:
+                publication_status = 'unknown'
+                if item['published']:
+                    age = (current-instant(item['published'])).total_seconds()
+                    publication_status = 'future' if age < 0 else ('stale' if age > threshold*3600 else 'fresh')
+                if status == 'healthy' and publication_status != 'fresh':
+                    status = 'publication_' + publication_status
+            try:
+                validate_config(config)
+            except (ValueError, TypeError):
+                status = 'configuration_invalid'
+            item.update(status=status, connection_status=connection_status,
+                        publication_status=publication_status, config=config)
             result.append(item)
         return result
 

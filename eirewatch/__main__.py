@@ -30,7 +30,7 @@ def main():
                 if len(configs)!=1: raise ValueError('Import requires one source')
                 raw=Path(args.payload).read_bytes();payload=json.loads(raw)
                 if payload.get('schema_version')!=1:raise ValueError('Unsupported schema')
-                m.register(configs[0]);result=m.ingest(configs[0]['id'],payload['incidents'],raw_hash=hashlib.sha256(raw).hexdigest())
+                m.register(configs[0]);result=m.ingest(configs[0]['id'],payload['incidents'],raw_hash=hashlib.sha256(raw).hexdigest(),published=payload.get('published'))
         elif args.command=='review':result=m.review(args.id,args.revision,args.decision,args.actor)
         elif args.command=='subscribe':result=m.subscribe(args.id,args.areas,args.categories,not args.disable)
         elif args.command=='queue':result=m.queue()

@@ -6,7 +6,7 @@ Baseline: 10 October 2026. Scheduled follow-ups: 11–17 October 2026 inclusive,
 |---|---|---|
 | Baseline — complete | SQLite core, collectors, CLI, report, examples | 14 tests pass |
 | Day 1 — implemented, 11 October | Publish baseline, add repository CI and CLI integration checks | 16 local tests pass; remote CI result tracked separately |
-| Day 2 | Source registry, publication freshness and official adapter research | Evidence and reuse terms documented; unknown integrations remain disabled |
+| Day 2 — implemented, 12 October | Source registry, publication freshness and official adapter research | 24 local tests pass; source evidence and unresolved reuse/adapter checks documented; production list remains empty |
 | Day 3 | Lifecycle edge cases, expiry transitions and semantic duplicate candidates | Replay/cancellation tests; never resolve by disappearance |
 | Day 4 | Review workflow and access-boundary design | No simulated authentication represented as real access control |
 | Day 5 | Outbox delivery interface, retries and receipts | Fake-provider tests; no external send without explicit destination authorisation |

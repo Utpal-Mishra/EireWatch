@@ -12,7 +12,7 @@ Independent Python 3.11+ implementation of source-health monitoring, reviewed in
 - Area/category subscriptions; deduplicated local outbox, superseded alerts and acknowledgement history.
 - Active alerts require an official configured source, healthy connection, approval and an unexpired time window. Resolution updates require an earlier subscription event. Disappearing feed entries are not automatically resolved.
 - Escaped green-themed HTML operations report with optional browser read-aloud.
-- CLI, synthetic fixtures and 16 automated tests, including end-to-end CLI checks.
+- CLI, synthetic fixtures and 24 automated tests, including end-to-end CLI checks.
 
 ## Quick start
 
@@ -49,7 +49,7 @@ Replace uppercase placeholders with actual snapshot IDs. The CLI is for a truste
 python -m eirewatch --db runtime/monitor.sqlite collect examples/production-sources.json
 ```
 
-A successful empty feed is connectivity evidence, not an all-clear. Source freshness currently measures collection recency; publication freshness is visible through incident timestamps and needs source-specific thresholds. No email, push provider, SMS, police submission or background location tracking is connected. Queueing is not delivery. Cross-source duplicates require review; only same-source repeat records are automatically deduplicated.
+A successful empty feed is connectivity evidence, not an all-clear. Connection recency and feed publication freshness are separate. A production source requires `publication_max_age_hours` and documented approval evidence. The normalized envelope accepts `published`, a timezone-aware publisher timestamp; missing or stale publication suppresses alerts even after a successful download. Never substitute collection time or the newest incident timestamp for a feed publication timestamp. Future or regressed feed publication timestamps reject the entire batch. See `docs/SOURCE_REGISTRY.md`. No email, push provider, SMS, police submission or background location tracking is connected. Queueing is not delivery. Cross-source duplicates require review; only same-source repeat records are automatically deduplicated.
 
 ## Production limits
 
@@ -64,3 +64,7 @@ See `docs/WEEK_PLAN.md`, `docs/ARCHITECTURE.md`, `docs/AUDIT.md` and `AGENTS.md`
 GitHub Actions runs the synthetic unit and CLI integration suite on pushes and pull requests, across Python 3.11, 3.12 and 3.13. It has read-only repository permissions, no secrets, no live-feed collection and no deployment steps. CI execution status is available in the repository Actions tab; committing a workflow does not establish a passing remote run.
 
 Day 1 (11 October): baseline publication, CI and CLI checks. Scheduled development continues 12–17 October, around 08:00 Europe/Dublin, working through `docs/WEEK_PLAN.md` and updating code, tests and documentation. This is a bounded development schedule, not continuous operational monitoring. The existing website is not deployed or changed by this repository workflow.
+
+## Day 2 — source readiness and freshness
+
+Source configuration validation now requires production endpoint, reuse and adapter verification evidence. Synthetic fixtures explicitly declare `synthetic: true`; this local test escape hatch is not an authentication boundary and must never be used for a real feed. Legacy approved configurations without evidence fail closed for alert eligibility. Existing databases gain a nullable publication field automatically; back up operational databases before upgrades. HTML and JSON reports show publication status independently of connection status. No real source has been approved or enabled.

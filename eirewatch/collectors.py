@@ -54,8 +54,8 @@ def collect(monitor, config, now=None, fetch=fetch_json):
         if config['adapter']!='normalized-json-v1': raise ValueError('Unsupported adapter')
         if not isinstance(payload,dict) or payload.get('schema_version')!=1 or not isinstance(payload.get('incidents'),list):
             raise ValueError('Unexpected feed schema')
-        monitor.ingest(config['id'],payload['incidents'],now,raw_hash)
-        return 'healthy'
+        monitor.ingest(config['id'],payload['incidents'],now,raw_hash, payload.get('published'))
+        return next(s['status'] for s in monitor.health(now) if s['id'] == config['id'])
     except (ValueError,TypeError,KeyError,OSError,urllib.error.URLError):
         # Do not leak URL credentials, provider response bodies or personal data.
         monitor.failure(config['id'],'Collection or validation failed; inspect the source privately',now)

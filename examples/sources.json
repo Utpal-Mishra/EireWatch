@@ -1,1 +1,15 @@
-[{"id":"demo","url":"https://example.org/eirewatch-feed.json","allowed_hosts":["example.org"],"adapter":"normalized-json-v1","max_age_hours":2,"approved_for_ingestion":true,"official":false,"notes":"SYNTHETIC FIXTURE ONLY. Not an official feed. Production sources require documented owner, reuse terms, stable identifiers and adapter validation."}]
+[
+  {
+    "id": "demo",
+    "url": "https://example.org/eirewatch-feed.json",
+    "allowed_hosts": [
+      "example.org"
+    ],
+    "adapter": "normalized-json-v1",
+    "max_age_hours": 2,
+    "approved_for_ingestion": true,
+    "official": false,
+    "notes": "SYNTHETIC FIXTURE ONLY. Not an official feed. Production sources require documented owner, reuse terms, stable identifiers and adapter validation.",
+    "synthetic": true
+  }
+]
