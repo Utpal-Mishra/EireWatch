@@ -63,3 +63,27 @@ Context: collection success alone could label old publications healthy. Decision
 | Decision | IMPLEMENTED original code only; no source activation | Keep candidate research separate from enabled configuration; preserve public repository history |
 | Validation / QA | TESTED local suite and additive legacy-source migration | Remote CI is separate from local results; no live-network test |
 | Change / Release | IMPLEMENTED 0.1.2 code, README, architecture, registry, changelog and plan | Next incomplete package: Day 3 lifecycle/duplicate candidates |
+
+## EW-20261013-01 — Day 3 lifecycle and duplicate candidates
+
+Date: 13 October 2026. Owner: project maintainer. Version: 0.1.3.
+Context: expiry was enforced at queue time but was not retained as an effective lifecycle transition, and cross-record duplicates had no explicit review queue. Evidence: `tests/test_monitor.py`; local suite 29 passing tests.
+
+| Log | Status / evidence | Rationale, mitigation and next action |
+|---|---|---|
+| Business Learning | IMPLEMENTED traceable expiry and duplicate-review signals; operational value remains PROPOSED | Validate review workload and false-positive rate in a bounded pilot |
+| System | IMPLEMENTED lifecycle projection and duplicate-candidate tables | Publisher records remain unchanged; additive tables preserve incident/history data |
+| Architecture | IMPLEMENTED audit-on-transition and non-destructive candidate pairing | Expiry and heuristic similarity cannot masquerade as publisher truth |
+| Automation | IMPLEMENTED Day 3 bounded package; no operational polling activated | Continue genuine review/access boundaries next; development ends 17 October |
+| Recommendation | PROPOSED source-specific duplicate thresholds and manual candidate disposition | Measure precision/recall before tuning or adding merge operations |
+| Experiment | TESTED 29 tests, including replay idempotence, expiry, withdrawal audience, and positive/negative duplicate boundaries | Synthetic coverage only; no representative cross-source corpus |
+| External Evidence | NOT REQUIRED for this original internal algorithm | No official endpoint, third-party code or licensing claim introduced |
+| Risk & Assumption | IMPLEMENTED no auto-merge/no false resolution; token similarity can over- or under-match | Candidate state only, stored reasons, 24-hour/category/area gates; human review remains next |
+| Data & Integration | IMPLEMENTED additive lifecycle/candidate SQLite records | Production source list remains empty; no personal data or database published |
+| Product / Feature | IMPLEMENTED lifecycle in snapshots and duplicate-candidate accessor | Operations-report presentation deferred to Day 6 |
+| Merchant & Fulfilment | NOT APPLICABLE | No commerce workflow |
+| Expansion | PROPOSED evaluate candidates on one approved source pair before wider coverage | No geographic or source expansion |
+| Decision | IMPLEMENTED expiry as effective `expired`, never `resolved`; cancellations notify prior audiences only | Preserve source truth and avoid unrelated cancellation notifications |
+| Validation / QA | TESTED full local suite on Python 3.12 | Remote CI checked separately after push; browser and multi-process behaviour unverified |
+| Change / Release | IMPLEMENTED 0.1.3 code, tests and documentation | Next incomplete package: Day 4 review workflow and access-boundary design |
+

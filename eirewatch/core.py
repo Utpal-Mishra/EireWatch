@@ -1,6 +1,7 @@
 """Transactional source health, incident revisions, review and local outbox."""
 import hashlib
 import json
+import re
 import sqlite3
 from datetime import datetime, timezone
 from .registry import validate_config
@@ -53,6 +54,15 @@ class Monitor:
           id TEXT PRIMARY KEY, subscription TEXT NOT NULL, incident TEXT NOT NULL,
           revision INTEGER NOT NULL, state TEXT NOT NULL DEFAULT 'pending',
           created TEXT NOT NULL, acknowledged TEXT, UNIQUE(subscription,incident,revision));
+        CREATE TABLE IF NOT EXISTS lifecycle(
+          incident TEXT PRIMARY KEY, effective_status TEXT NOT NULL,
+          changed TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS duplicate_candidates(
+          first_incident TEXT NOT NULL, second_incident TEXT NOT NULL,
+          detected TEXT NOT NULL, reason TEXT NOT NULL,
+          state TEXT NOT NULL DEFAULT 'candidate',
+          PRIMARY KEY(first_incident,second_incident),
+          CHECK(first_incident < second_incident));
         ''')
 
         # Additive migration preserves existing incidents and history.
@@ -64,6 +74,77 @@ class Monitor:
     def audit(self, action, subject, actor, detail, now):
         self.db.execute('INSERT INTO audit(at,action,subject,actor,detail) VALUES(?,?,?,?,?)',
                         (now, action, subject, actor, canonical(detail)))
+
+    @staticmethod
+    def _title_tokens(value):
+        return {token for token in re.findall(r'[a-z0-9]+', value.casefold()) if len(token) > 2}
+
+    def _detect_duplicate_candidates(self, incident_id, now):
+        current = self.db.execute('SELECT * FROM incidents WHERE id=?', (incident_id,)).fetchone()
+        if not current:
+            return
+        item = json.loads(current['data'])
+        item_tokens = self._title_tokens(item['title'])
+        for other in self.db.execute('SELECT * FROM incidents WHERE id<>?', (incident_id,)).fetchall():
+            candidate = json.loads(other['data'])
+            if candidate['category'] != item['category']:
+                continue
+            if not set(candidate['areas']) & set(item['areas']):
+                continue
+            seconds = abs((instant(candidate['issued']) - instant(item['issued'])).total_seconds())
+            if seconds > 86400:
+                continue
+            other_tokens = self._title_tokens(candidate['title'])
+            union = item_tokens | other_tokens
+            similarity = len(item_tokens & other_tokens) / len(union) if union else 0
+            if similarity < 0.5:
+                continue
+            first, second = sorted((incident_id, other['id']))
+            reason = canonical({
+                'area_overlap': sorted(set(candidate['areas']) & set(item['areas'])),
+                'category': item['category'],
+                'issued_within_hours': round(seconds / 3600, 2),
+                'title_token_similarity': round(similarity, 3),
+            })
+            cursor = self.db.execute(
+                'INSERT OR IGNORE INTO duplicate_candidates(first_incident,second_incident,detected,reason) VALUES(?,?,?,?)',
+                (first, second, now, reason))
+            if cursor.rowcount:
+                self.audit('duplicate_candidate_created', first + ':' + second,
+                           'system', json.loads(reason), now)
+
+    def refresh_lifecycle(self, now=None):
+        """Record effective expiry without changing publisher-supplied incident status."""
+        now = now or utc()
+        current = instant(now)
+        changed = 0
+        with self.db:
+            for row in self.db.execute('SELECT id,data FROM incidents').fetchall():
+                record = json.loads(row['data'])
+                effective = record['status']
+                if (effective == 'active' and record['expires'] is not None
+                        and instant(record['expires']) <= current):
+                    effective = 'expired'
+                old = self.db.execute(
+                    'SELECT effective_status FROM lifecycle WHERE incident=?', (row['id'],)).fetchone()
+                if old and old['effective_status'] == effective:
+                    continue
+                self.db.execute(
+                    'INSERT INTO lifecycle(incident,effective_status,changed) VALUES(?,?,?) '
+                    'ON CONFLICT(incident) DO UPDATE SET effective_status=excluded.effective_status,changed=excluded.changed',
+                    (row['id'], effective, now))
+                self.audit('lifecycle_changed', row['id'], 'system',
+                           {'before': old['effective_status'] if old else None,
+                            'after': effective,
+                            'publisher_status': record['status']}, now)
+                changed += 1
+        return changed
+
+    def duplicate_candidates(self, state='candidate'):
+        rows = self.db.execute(
+            'SELECT * FROM duplicate_candidates WHERE state=? ORDER BY detected,first_incident,second_incident',
+            (state,)).fetchall()
+        return [{**dict(row), 'reason': json.loads(row['reason'])} for row in rows]
 
     def register(self, config):
         validate_config(config)
@@ -140,6 +221,7 @@ class Monitor:
                 # Superseded notifications are never delivered as current information.
                 self.db.execute("UPDATE outbox SET state='superseded' WHERE incident=? AND state='pending'",(id,))
                 self.audit('revision_created',id,'collector',{'revision':revision},now)
+                self._detect_duplicate_candidates(id, now)
                 changed += 1
             self.db.execute('UPDATE sources SET checked=?,succeeded=?,failures=0,error=NULL,raw_hash=?,published=? WHERE id=?',
                             (now,now,raw_hash,published,source_id))
@@ -194,6 +276,7 @@ class Monitor:
 
     def queue(self, now=None):
         now=now or utc(); current=instant(now); added=0
+        self.refresh_lifecycle(now)
         health={r['id']:r for r in self.health(now)}
         with self.db:
             for row in self.db.execute("SELECT * FROM incidents WHERE review='approved'").fetchall():
@@ -233,7 +316,13 @@ class Monitor:
             self.audit('acknowledged',id,subscription,{},now or utc())
 
     def snapshot(self, now=None):
-        return {'generated':now or utc(),'sources':self.health(now),
+        timestamp = now or utc()
+        self.refresh_lifecycle(timestamp)
+        lifecycle = {r['incident']: dict(r) for r in self.db.execute('SELECT * FROM lifecycle')}
+        return {'generated':timestamp,'sources':self.health(timestamp),
                 'incidents':[{**dict(r),'data':json.loads(r['data'])} for r in self.db.execute('SELECT * FROM incidents')],
                 'history':[{**dict(r),'data':json.loads(r['data']),'changes':json.loads(r['changes'])} for r in self.db.execute('SELECT * FROM history ORDER BY at,revision')],
-                'outbox':[dict(r) for r in self.db.execute('SELECT * FROM outbox')]}
+                'outbox':[dict(r) for r in self.db.execute('SELECT * FROM outbox')],
+                'lifecycle':lifecycle,
+                'duplicate_candidates':self.duplicate_candidates()}
+

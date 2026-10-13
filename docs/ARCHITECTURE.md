@@ -19,3 +19,12 @@ CI checks synthetic data and isolated temporary SQLite databases on push/PR. It 
 The normalized envelope's optional `published` field refers to the feed's publisher timestamp, including a publisher-confirmed empty feed. Production policy requires `publication_max_age_hours`; no timestamp means unknown, not fresh. Collection updates `checked` and `succeeded` independently. Missing publication replaces previous publication with unknown. Publication regression or future timestamps reject the transaction. No inferred timestamp is taken from incident maxima or HTTP retrieval time. Publisher clock skew and timestamp reset require source-specific investigation; strict rejection is intentional for this version.
 
 A nullable `sources.published` column is added once on open. Old incident and history data are preserved. Combined source eligibility is healthy only if required publication freshness also passes; queue and inbox reuse this gate. No source is resolved merely because its feed is empty. Event-driven feeds without a periodic publisher timestamp need a researched policy/adapter before approval; an old warning is not necessarily invalid, so source-specific thresholds remain required.
+
+## Effective lifecycle and duplicate candidates (Day 3)
+
+Publisher status remains immutable inside each revision. A separate `lifecycle` projection records the current effective state. When an active record reaches its declared expiry, the projection becomes `expired` and an audit entry is written once; the source record remains `active`. This suppresses continued delivery without inventing a publisher-confirmed resolution. An empty feed or missing record never advances lifecycle state.
+
+Explicit `resolved` and `withdrawn` revisions follow the normal revision/review path. They can enter the outbox only for subscriptions with an earlier notification for the same incident, avoiding cancellation broadcasts to unrelated subscribers.
+
+`duplicate_candidates` is a review queue, not an identity resolver. Candidate pairs require equal category, an overlapping area, issue timestamps within 24 hours and title-token Jaccard similarity of at least 0.5. Detection stores an explainable reason and never merges incidents or changes review/outbox state. Source-specific evaluation is required before changing thresholds.
+

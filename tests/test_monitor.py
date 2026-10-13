@@ -84,5 +84,45 @@ class MonitorTests(unittest.TestCase):
     def test_area_category_filter(self):
         self.m.subscribe('dublin',['Dublin'],['road']);id=self.load();self.approve(id)
         self.assertEqual(self.m.queue(NOW),1);self.assertEqual(self.m.inbox('dublin',NOW),[])
+    def test_expiry_is_recorded_without_claiming_resolution(self):
+        id=self.load();self.approve(id)
+        later='2026-10-10T18:00:00Z'
+        self.assertEqual(self.m.queue(later),0)
+        snapshot=self.m.snapshot(later)
+        self.assertEqual(snapshot['incidents'][0]['data']['status'],'active')
+        self.assertEqual(snapshot['lifecycle'][id]['effective_status'],'expired')
+        actions=[r['action'] for r in self.m.db.execute('SELECT action FROM audit')]
+        self.assertIn('lifecycle_changed',actions)
+    def test_replay_does_not_duplicate_lifecycle_events(self):
+        self.load();self.m.snapshot(NOW)
+        before=self.m.db.execute("SELECT COUNT(*) FROM audit WHERE action='lifecycle_changed'").fetchone()[0]
+        self.m.ingest('test',[RECORD],NOW);self.m.snapshot(NOW)
+        after=self.m.db.execute("SELECT COUNT(*) FROM audit WHERE action='lifecycle_changed'").fetchone()[0]
+        self.assertEqual(before,after)
+    def test_withdrawal_notifies_only_previously_notified_subscribers(self):
+        self.m.subscribe('galway',['Galway'],['road'])
+        id=self.load();self.approve(id);self.m.queue(NOW)
+        self.load({**RECORD,'status':'withdrawn','updated':NOW});self.approve(id,2)
+        self.assertEqual(self.m.queue(NOW),1)
+        self.assertEqual(self.m.inbox('cork',NOW)[0]['data']['status'],'withdrawn')
+        self.assertEqual(self.m.inbox('galway',NOW),[])
+    def test_semantic_duplicates_are_candidates_not_auto_merged(self):
+        second={**RECORD,'id':'two','title':'Test road closure in Cork',
+                'issued':'2026-10-10T08:30:00Z','updated':'2026-10-10T09:15:00Z'}
+        self.m.ingest('test',[RECORD,second],NOW)
+        snapshot=self.m.snapshot(NOW)
+        self.assertEqual(len(snapshot['incidents']),2)
+        self.assertEqual(len(snapshot['duplicate_candidates']),1)
+        self.assertEqual(snapshot['duplicate_candidates'][0]['state'],'candidate')
+    def test_duplicate_detection_requires_area_and_time_proximity(self):
+        records=[
+            RECORD,
+            {**RECORD,'id':'far','issued':'2026-10-12T08:00:00Z','updated':'2026-10-12T09:00:00Z',
+             'expires':'2026-10-12T18:00:00Z'},
+            {**RECORD,'id':'elsewhere','areas':['Dublin']},
+        ]
+        self.m.ingest('test',records,NOW)
+        self.assertEqual(self.m.duplicate_candidates(),[])
 
 if __name__=='__main__':unittest.main()
+
