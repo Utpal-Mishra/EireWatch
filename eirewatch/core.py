@@ -47,6 +47,10 @@ class Monitor:
         CREATE TABLE IF NOT EXISTS audit(
           id INTEGER PRIMARY KEY, at TEXT NOT NULL, action TEXT NOT NULL,
           subject TEXT NOT NULL, actor TEXT NOT NULL, detail TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS review_decisions(
+          id INTEGER PRIMARY KEY, incident TEXT NOT NULL, revision INTEGER NOT NULL,
+          decision TEXT NOT NULL, actor TEXT NOT NULL, reason TEXT NOT NULL,
+          at TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS subscriptions(
           id TEXT PRIMARY KEY, areas TEXT NOT NULL, categories TEXT NOT NULL,
           enabled INTEGER NOT NULL);
@@ -80,6 +84,8 @@ class Monitor:
         return {token for token in re.findall(r'[a-z0-9]+', value.casefold()) if len(token) > 2}
 
     def _detect_duplicate_candidates(self, incident_id, now):
+        self.db.execute("UPDATE duplicate_candidates SET state='candidate' WHERE first_incident=? OR second_incident=?",
+                        (incident_id, incident_id))
         current = self.db.execute('SELECT * FROM incidents WHERE id=?', (incident_id,)).fetchone()
         if not current:
             return
@@ -233,9 +239,49 @@ class Monitor:
             self.db.execute('UPDATE sources SET checked=?,failures=failures+1,error=? WHERE id=?',
                             (now or utc(),str(error)[:200],source_id))
 
-    def review(self, id, revision, decision, actor, now=None):
+    def review_queue(self):
+        """Local operator inspection; not a public or authenticated endpoint."""
+        return [dict(row, data=json.loads(row['data'])) for row in self.db.execute(
+            "SELECT * FROM incidents WHERE review='pending' ORDER BY source,id")]
+
+    def review_detail(self, id, revision):
+        row = self.db.execute('SELECT * FROM incidents WHERE id=?', (id,)).fetchone()
+        if not row or row['revision'] != revision:
+            raise ValueError('Stale review: inspect the current revision')
+        history = self.db.execute('SELECT * FROM history WHERE incident=? AND revision=?',
+                                  (id, revision)).fetchone()
+        return {'incident': dict(row, data=json.loads(row['data'])),
+                'changes': json.loads(history['changes']),
+                'decisions': [dict(r) for r in self.db.execute(
+                    'SELECT * FROM review_decisions WHERE incident=? ORDER BY id', (id,))]}
+
+    def review_duplicate(self, first, second, revisions, decision, actor, reason, now=None):
+        """Record a manual assessment; never merge or approve incidents."""
+        if decision not in ('duplicate', 'distinct') or not actor.strip() or not reason.strip():
+            raise ValueError('Decision, actor and reason required')
+        with self.db:
+            candidate = self.db.execute(
+                'SELECT * FROM duplicate_candidates WHERE first_incident=? AND second_incident=?',
+                (first, second)).fetchone()
+            if not candidate:
+                raise ValueError('Unknown candidate pair')
+            current = tuple(self.db.execute('SELECT revision FROM incidents WHERE id=?',
+                                           (id,)).fetchone()['revision'] for id in (first, second))
+            if current != tuple(revisions):
+                raise ValueError('Stale candidate: inspect both current revisions')
+            self.db.execute('UPDATE duplicate_candidates SET state=? WHERE first_incident=? AND second_incident=?',
+                            (decision, first, second))
+            self.audit('duplicate_review', first, actor.strip(),
+                       {'second': second, 'revisions': list(current), 'decision': decision,
+                        'reason': reason.strip()}, now or utc())
+
+    def review(self, id, revision, decision, actor, now=None, reason=None):
         if decision not in ('approved','rejected') or not actor.strip():
             raise ValueError('Explicit decision and reviewer required')
+        # Legacy callers remain supported but cannot imply a documented rationale.
+        reason = 'Not supplied (legacy local caller)' if reason is None else reason.strip()
+        if not reason:
+            raise ValueError('Review reason must not be blank')
         with self.db:
             row = self.db.execute('SELECT revision FROM incidents WHERE id=?',(id,)).fetchone()
             if not row or row['revision'] != revision:
@@ -243,7 +289,10 @@ class Monitor:
             self.db.execute('UPDATE incidents SET review=? WHERE id=?',(decision,id))
             if decision == 'rejected':
                 self.db.execute("UPDATE outbox SET state='superseded' WHERE incident=? AND state='pending'",(id,))
-            self.audit('review_'+decision,id,actor,{'revision':revision},now or utc())
+            at = now or utc()
+            self.db.execute('INSERT INTO review_decisions(incident,revision,decision,actor,reason,at) VALUES(?,?,?,?,?,?)',
+                            (id, revision, decision, actor.strip(), reason, at))
+            self.audit('review_'+decision,id,actor.strip(),{'revision':revision, 'reason':reason},at)
 
     def health(self, now=None):
         current = instant(now or utc())

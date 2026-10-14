@@ -1,5 +1,11 @@
 # Architecture
 
+## Local review boundary (Day 4)
+
+Pending inspection and revision detail precede a decision. Review mutations compare the supplied revision inside the SQLite transaction, add a decision-history row and audit entry atomically, and preserve rejection suppression. Duplicate assessments compare both revisions and only change candidate state; a changed record reopens associated candidates even if the old heuristic no longer matches. Audit reasons and current records must be considered together. Existing databases gain an additive review table; old audit rows are not backfilled as new decisions.
+
+This is genuine local operator workflow, not genuine remote authentication. Database writers can bypass or alter every check and audit. `docs/ACCESS_BOUNDARIES.md` defines proposed production separation; no user-supplied role or actor is accepted as proof of authenticated authority.
+
 Source configuration → bounded collector → validated normalized records → SQLite transaction → revision history → human review → eligible local outbox → acknowledgement.
 
 Each source has independent health and retry state. An invalid batch commits no incidents. A source failure retains last-known records without converting them into current warnings. IDs combine source ID and external ID; revisions fingerprint complete normalized records. Changes require fresh review and supersede pending older notifications.

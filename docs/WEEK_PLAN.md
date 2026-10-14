@@ -8,7 +8,7 @@ Baseline: 10 October 2026. Scheduled follow-ups: 11–17 October 2026 inclusive,
 | Day 1 — implemented, 11 October | Publish baseline, add repository CI and CLI integration checks | 16 local tests pass; remote CI result tracked separately |
 | Day 2 — implemented, 12 October | Source registry, publication freshness and official adapter research | 24 local tests pass; source evidence and unresolved reuse/adapter checks documented; production list remains empty |
 | Day 3 — implemented, 13 October | Lifecycle edge cases, expiry transitions and semantic duplicate candidates | 29 local tests pass; replay/withdrawal/expiry/duplicate boundaries tested; never resolve by disappearance |
-| Day 4 | Review workflow and access-boundary design | No simulated authentication represented as real access control |
+| Day 4 — implemented, 14 October | Local review inspection, reasons, decision history, duplicate disposition and access-boundary design | 36 local tests pass; authenticated hosted access remains deferred, not simulated |
 | Day 5 | Outbox delivery interface, retries and receipts | Fake-provider tests; no external send without explicit destination authorisation |
 | Day 6 | Operations report usability, filters and accessibility | Keyboard checks where supported; source degradation is visible |
 | Day 7 | Regression review, packaging, operational runbook and handover | README accurately distinguishes working, unconnected and deferred features |

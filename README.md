@@ -14,7 +14,7 @@ Independent Python 3.11+ implementation of source-health monitoring, reviewed in
 - Area/category subscriptions; deduplicated local outbox, superseded alerts and acknowledgement history.
 - Active alerts require an official configured source, healthy connection, approval and an unexpired time window. Resolution updates require an earlier subscription event. Disappearing feed entries are not automatically resolved.
 - Escaped green-themed HTML operations report with optional browser read-aloud.
-- CLI, synthetic fixtures and 29 automated tests, including end-to-end CLI checks.
+- CLI, synthetic fixtures and 36 automated tests, including end-to-end CLI checks.
 
 ## Quick start
 
@@ -35,13 +35,21 @@ Open `runtime/report.html` locally. The example is synthetic and deliberately no
 ```sh
 python -m eirewatch --db runtime/monitor.sqlite subscribe operator --areas Cork --categories road
 python -m eirewatch --db runtime/monitor.sqlite export runtime/snapshot.json
-python -m eirewatch --db runtime/monitor.sqlite review INCIDENT_ID REVISION approved --actor REVIEWER
+python -m eirewatch --db runtime/monitor.sqlite review-queue
+python -m eirewatch --db runtime/monitor.sqlite review-detail INCIDENT_ID REVISION
+python -m eirewatch --db runtime/monitor.sqlite review INCIDENT_ID REVISION approved --actor REVIEWER --reason "Source and revision checked"
 python -m eirewatch --db runtime/monitor.sqlite queue
 python -m eirewatch --db runtime/monitor.sqlite inbox operator
 python -m eirewatch --db runtime/monitor.sqlite ack NOTIFICATION_ID --subscription operator
 ```
 
 Replace uppercase placeholders with actual snapshot IDs. The CLI is for a trusted local operator, not an authenticated multi-user API. `--actor` records a name; it does not verify identity. Protect database files with OS permissions.
+
+## Day 4 — local review workflow and access boundaries
+
+Inspect pending records and current revision changes before deciding. CLI decisions require a non-blank reason; decision rows preserve each approval/rejection, actor label, rationale and revision. Legacy Python callers without a reason are explicitly labelled as such. New revisions invalidate approval and stale inspection/decisions fail closed.
+
+Use `duplicates` to inspect candidate IDs, then `review-duplicate FIRST SECOND FIRST_REVISION SECOND_REVISION duplicate --actor REVIEWER --reason "Evidence checked"` (or `distinct`). Assessments never merge or approve incidents. Changed records reopen associated candidates for reassessment; stored heuristic reasons can describe an older match, so inspect both current records. See `docs/ACCESS_BOUNDARIES.md` before considering a hosted service. No authentication, tenant isolation or tamper-proof audit storage is claimed.
 
 ## Source integration
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4 — 14 October 2026
+
+- Added pending-review inspection, current revision detail and persistent decision reasons/history.
+- CLI requires reasons; stale decisions fail without mutation. Legacy reason omission is labelled explicitly.
+- Added manual duplicate/distinct disposition without merging or approval; revisions reopen assessment.
+- Documented trusted-local versus proposed hosted access boundaries. 36 synthetic tests pass locally.
+- No authentication, live integrations, external sends or deployment activated.
+
 ## 0.1.3 — 13 October 2026
 
 - Added durable effective-lifecycle transitions, including expiry without falsely claiming resolution.

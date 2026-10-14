@@ -1,5 +1,27 @@
 # Audit — 10 October 2026
 
+## EW-20261014-01 — Day 4 local review workflow
+
+Date: 14 October 2026. Owner: project maintainer. Version: 0.1.4. Evidence: `tests/test_review.py`, `tests/test_cli.py`, full local suite. Latest remote baseline inspected and fast-forwarded before editing; no unrelated local changes found.
+
+| Log | Status / evidence | Rationale, mitigation and follow-up |
+|---|---|---|
+| Business Learning | IMPLEMENTED attributable local decisions; business value unvalidated | Measure review burden in a bounded pilot |
+| System | IMPLEMENTED additive review-decision table and inspection CLI | Existing history preserved; no invented historical reasons |
+| Architecture | IMPLEMENTED transactional revision checks and decision/audit writes | Hosted permission enforcement remains PROPOSED in access-boundary document |
+| Automation | IMPLEMENTED fourth bounded package | No production monitoring; continue delivery interfaces next; stop development after 17 October |
+| Recommendation | PROPOSED authenticated organisation-scoped service before real users | Do not expose SQLite/CLI as a remote API |
+| Experiment | TESTED 36 synthetic unit/CLI tests | Inspection, reasons, history, stale decisions, invalid inputs, disposition and reopening covered |
+| External Evidence | VERIFIED current repository package through GitHub and fast-forward fetch | No new external integrations or official-data assertions; no third-party code reused |
+| Risk & Assumption | IMPLEMENTED honest trusted-local boundary; high-impact remote impersonation/tenant risks remain | Actor is unverified label; OS access controls required; remote authentication deferred, never simulated |
+| Data & Integration | IMPLEMENTED additive decision history | No private data/database published; production sources remain empty |
+| Product / Feature | IMPLEMENTED review queue/detail and manual duplicate/distinct assessment | No merge/approval side effects; changed revisions reopen assessment; old match reasons require current-record inspection |
+| Merchant & Fulfilment | NOT APPLICABLE | No commerce workflow |
+| Expansion | PROPOSED bounded single-source pilot only after production controls | No coverage increase |
+| Decision | IMPLEMENTED reason-required CLI; legacy Python omission explicitly labelled | Preserve compatibility without pretending older callers recorded a rationale |
+| Validation / QA | TESTED local full suite and compilation | No authenticated-service, browser, live-network or multi-process security validation; remote CI reported separately |
+| Change / Release | IMPLEMENTED 0.1.4 README, architecture, access design, changelog and plan | No deployment, sends, visibility change or force-push |
+
 Status vocabulary: IMPLEMENTED, TESTED, PROPOSED, BLOCKED. No government endorsement or live feed implied.
 
 - Business learning: IMPLEMENTED foundation targets verifiable changes and traceable handling; commercial value and customer demand remain unvalidated.

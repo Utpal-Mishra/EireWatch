@@ -44,3 +44,11 @@ class CliTests(unittest.TestCase):
         self.assertEqual(self.run_cli('collect', 'examples/production-sources.json'), {})
         self.assertEqual(self.run_cli('health'), [])
         self.assertEqual(self.run_cli('queue'), 0)
+
+    def test_review_inspection_and_required_reason(self):
+        self.run_cli('import', 'examples/sources.json', 'examples/incidents.json')
+        row = self.run_cli('review-queue')[0]
+        self.assertEqual(self.run_cli('review-detail', row['id'], '1')['decisions'], [])
+        self.run_cli('review', row['id'], '1', 'rejected', '--actor', 'test', '--reason', 'Synthetic test')
+        self.assertEqual(self.run_cli('review-queue'), [])
+        self.assertEqual(self.run_cli('review-detail', row['id'], '1')['decisions'][0]['reason'], 'Synthetic test')
